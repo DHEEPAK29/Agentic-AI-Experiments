@@ -1,0 +1,81 @@
+# ===================== Tiny GPT-ish LM trained on two words =====================
+# Inspired by GPT-2 config files released by OpenAI.
+# Trainable in <30 s on CPU; produces ~26 k parameters total.
+# -------------------------------------------------------------------------------
+#  Corpus: the two‑word vocabulary {"apple", "banana"}.
+#  Special tokens: <bos>, <eos>, <pad>. (We do **not** use an <unk> token because
+#  every corpus token is in‑vocab.)
+# -------------------------------------------------------------------------------
+
+model_type: gpt2
+vocab_size: 4               # <bos>, <eos>, apple, <pad>
+bos_token_id: 0
+eos_token_id: 1
+pad_token_id: 3
+
+# ---- tiny‑model geometry -------------------------------------------------------
+n_positions: 16             # maximum sequence length (enough for <bos> word <eos>)
+n_embd: 32                  # embedding / hidden size
+n_layer: 2                  # Transformer decoder layers
+n_head: 4                   # must divide n_embd evenly (32 ÷ 4 = 8‑d head)
+n_inner: 128                # feed‑forward dimension (4 × n_embd, GPT‑2 default)
+
+# ---- regularisation zeroed so the toy model converges fast --------------------
+resid_pdrop: 0.0
+attn_pdrop: 0.0
+embd_pdrop: 0.0
+layer_norm_eps: 1.0e-5
+initializer_range: 0.02
+
+# ---- training hyper‑parameters -------------------------------------------------
+trainer:
+  per_device_train_batch_size: 4
+  per_device_eval_batch_size: 4
+  gradient_accumulation_steps: 1
+  learning_rate: 5.0e-4      # high LR is fine for <30 k params
+  weight_decay: 0.0
+  lr_scheduler_type: cosine
+  num_train_epochs: 500       # ~10 k updates; stops as soon as loss≈0
+  warmup_steps: 10
+  logging_steps: 50
+  save_steps: 200
+  max_steps: -1              # unlimited; use epochs instead
+
+# ---- tokenizer spec (Hugging Face WordLevel) ----------------------------------
+tokenizer:
+  type: wordlevel
+  vocab:
+    "<bos>": 0
+    "<eos>": 1
+    "apple": 2
+    "<pad>": 3
+  special_tokens: ["<bos>", "<eos>", "<pad>"]
+
+# ---- dataset (inline for brevity) ---------------------------------------------
+dataset:
+  train:
+    sequences:
+      - "apple"
+      - "banana"
+  val:
+    sequences:
+      - "banana"
+
+# Each sequence is wrapped as: <bos> WORD <eos> (→ 3 tokens).
+# -------------------------------------------------------------------------------
+#  PARAMETER COUNT (dense):
+#   • Token + position embeddings  = 640
+#   • Transformer layers (×2)      = 25 408
+#   • LM head (tied to embeddings) =   128
+#   --------------------------------------------------
+#                            TOTAL ≈ 26 176 params
+# -------------------------------------------------------------------------------
+#  TRAINING COMMAND (🤗 Transformers ≥ 4.41):
+#    accelerate launch train.py \
+#      --config_file tiny_gpt_config.yaml \
+#      --output_dir ./tiny-gpt-two-words
+# -------------------------------------------------------------------------------
+# After convergence, the model will deterministically map either input word to
+# itself with perplexity ≈ 1.0 and generate infinite repetitions of the same
+# word when sampled.
+# ==============================================================================

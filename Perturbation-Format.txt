@@ -1,0 +1,3 @@
+Char-level
+Sentence-level
+Semantic
